@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 import math
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.data_loader import dataset_manager, DEFAULT_DATASET_PATH
@@ -54,7 +54,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/api/health", response_model=HealthResponse)
+router = APIRouter()
+
+@router.get("/health", response_model=HealthResponse)
 def health_check():
     """Health check endpoint to verify backend status and dataset readiness."""
     df = dataset_manager.get_df()
@@ -65,12 +67,12 @@ def health_check():
         "total_records": len(df) if df is not None else 0
     }
 
-@app.get("/api/metadata")
+@router.get("/metadata")
 def get_metadata():
     """Returns dataset metadata, column mapping audit, and data quality report."""
     return dataset_manager.get_quality_report()
 
-@app.get("/api/filters/options", response_model=FilterOptionsResponse)
+@router.get("/filters/options", response_model=FilterOptionsResponse)
 def get_filter_options():
     """Returns unique options for frontend filter dropdowns and slider boundaries."""
     df = dataset_manager.get_df()
@@ -94,7 +96,7 @@ def get_filter_options():
         "max_engagement": float(eng.max()) if not eng.empty else 100.0
     }
 
-@app.get("/api/influencers", response_model=InfluencerListResponse)
+@router.get("/influencers", response_model=InfluencerListResponse)
 def get_influencers(
     country: Optional[List[str]] = Query(None),
     category: Optional[List[str]] = Query(None),
@@ -160,7 +162,7 @@ def get_influencers(
         "total_pages": total_pages
     }
 
-@app.get("/api/influencers/{identifier}")
+@router.get("/influencers/{identifier}")
 def get_influencer_detail(identifier: str):
     """
     Returns complete profile and comparative standing for a single creator
@@ -225,7 +227,7 @@ def get_influencer_detail(identifier: str):
         "benchmarks": benchmarks
     }
 
-@app.get("/api/analytics/overview")
+@router.get("/analytics/overview")
 def get_analytics_overview(
     country: Optional[List[str]] = Query(None),
     category: Optional[List[str]] = Query(None),
@@ -261,7 +263,7 @@ def get_analytics_overview(
         "charts": charts
     }
 
-@app.get("/api/analytics/categories")
+@router.get("/analytics/categories")
 def get_categories_analysis():
     """Detailed category-level breakdowns and comparative benchmarks."""
     df = dataset_manager.get_df()
@@ -271,7 +273,7 @@ def get_categories_analysis():
         "category_distribution": charts["category_distribution"]
     }
 
-@app.get("/api/analytics/countries")
+@router.get("/analytics/countries")
 def get_countries_analysis():
     """Detailed country-level breakdowns and geographic performance."""
     df = dataset_manager.get_df()
@@ -281,7 +283,7 @@ def get_countries_analysis():
         "country_distribution": charts["country_distribution"]
     }
 
-@app.post("/api/analytics/compare")
+@router.post("/analytics/compare")
 def compare_selected_influencers(req: CompareRequest):
     """Side-by-side comparison of 2 to 5 selected influencers."""
     df = dataset_manager.get_df()
@@ -290,7 +292,7 @@ def compare_selected_influencers(req: CompareRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/api/analytics/custom-score")
+@router.post("/analytics/custom-score")
 def rank_by_custom_score(req: CustomScoreRequest):
     """
     Computes a transparent composite score using user-defined weights.
@@ -314,7 +316,7 @@ def rank_by_custom_score(req: CustomScoreRequest):
         "ranked_creators": ranked
     }
 
-@app.post("/api/campaign/simulate")
+@router.post("/campaign/simulate")
 def run_campaign_simulation(req: CampaignSimulationRequest):
     """Simulates campaign ROI, CPC, CPA, and conversion rates."""
     return simulate_campaign_metrics(
@@ -325,7 +327,7 @@ def run_campaign_simulation(req: CampaignSimulationRequest):
         revenue=req.revenue
     )
 
-@app.post("/api/dataset/toggle-enrichment")
+@router.post("/dataset/toggle-enrichment")
 def toggle_dataset_enrichment(req: ToggleEnrichmentRequest):
     """Toggles verified category enrichment on or off."""
     dataset_manager.toggle_enrichment(req.enabled)
@@ -334,7 +336,7 @@ def toggle_dataset_enrichment(req: ToggleEnrichmentRequest):
         "metadata": dataset_manager.get_quality_report()
     }
 
-@app.post("/api/dataset/upload")
+@router.post("/dataset/upload")
 async def upload_custom_dataset(file: UploadFile = File(...)):
     """Accepts custom CSV file, dynamically maps columns, and re-computes analytics."""
     if not file.filename.endswith(".csv"):
@@ -349,3 +351,18 @@ async def upload_custom_dataset(file: UploadFile = File(...)):
         "message": f"Successfully loaded {file.filename}",
         "metadata": dataset_manager.get_quality_report()
     }
+
+@router.get("/")
+def root_status():
+    """Root status endpoint for health checks and service discovery."""
+    return {
+        "service": "InfluenceIQ Backend API",
+        "status": "healthy",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }
+
+# Mount router under both /api and root / to support direct routing, proxies, and Vercel services
+app.include_router(router, prefix="/api")
+app.include_router(router)
+

@@ -3,7 +3,8 @@
  * Centralized fetch functions for communicating with the FastAPI backend.
  */
 
-const BASE_URL = '/api';
+// Uses Vite environment variable if provided, defaulting to '/api' for local proxy and Vercel services rewrite
+const BASE_URL = (import.meta.env?.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
 async function request(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;
