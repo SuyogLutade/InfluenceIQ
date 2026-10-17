@@ -24,11 +24,12 @@ from app.data_cleaning import (
     compute_data_quality_report
 )
 
-DEFAULT_DATASET_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    "data",
-    "top_insta_influencers_data.csv"
-)
+_candidate_paths = [
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "top_insta_influencers_data.csv"),
+    os.path.join(os.getcwd(), "backend", "data", "top_insta_influencers_data.csv"),
+    os.path.join(os.getcwd(), "data", "top_insta_influencers_data.csv"),
+]
+DEFAULT_DATASET_PATH = next((p for p in _candidate_paths if os.path.exists(p)), _candidate_paths[0])
 
 # Canonical internal schema fields
 CANONICAL_FIELDS = [
